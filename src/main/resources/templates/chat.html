@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Kafka WebSocket Chat</title>
+  <link href="css/bootstrap.min.css" rel="stylesheet">
+  <script src="js/sockjs.min.js"></script>
+  <script src="js/stomp.min.js"></script>
+  <style>
+    html, body {
+      height: 100%;
+    }
+    .scrollable {
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .info-table td, .info-table th {
+      vertical-align: top;
+      white-space: pre-wrap;
+    }
+    #chat {
+      background-color: #fff;
+      border: 1px solid #dee2e6;
+      padding: 1rem;
+      border-radius: 0.375rem;
+    }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container-fluid py-4">
+  <h2 class="text-center mb-4">Kafka WebSocket Chat</h2>
+  <div class="row" style="height: 80vh;">
+    <!-- Chat Section -->
+    <div class="col-lg-8 mb-4">
+      <div class="card h-100 d-flex flex-column">
+        <div class="card-header">
+          <div class="input-group">
+            <span class="input-group-text">Username</span>
+            <input type="text" id="username" class="form-control" value="anonymous" />
+            <button id="toggleBtn" class="btn btn-outline-success" onclick="toggleRandom()">▶ Random Message</button>
+          </div>
+        </div>
+        <div class="card-body d-flex flex-column flex-grow-1">
+          <div id="chat" class="flex-grow-1 overflow-auto mb-3"></div>
+          <div class="d-flex">
+            <input type="text" id="message" class="form-control me-2" placeholder="Type your message..." />
+            <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kafka Info Section -->
+    <div class="col-lg-4">
+      <div class="card scrollable h-100">
+        <div class="card-header fw-bold">Kafka Info</div>
+        <div class="card-body p-2">
+          <table class="table table-bordered info-table">
+            <thead>
+              <tr><th>Key</th><th>Value</th></tr>
+            </thead>
+            <tbody id="kafkaInfoBody">
+              <tr><td colspan="2" class="text-muted">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let stompClient = null;
+  let randomMessageInterval = null;
+  let running = false;
+
+  function connect() {
+    const socket = new SockJS('/ws');
+    stompClient = Stomp.over(socket);
+    stompClient.connect({}, function () {
+      stompClient.subscribe('/topic/messages', function (message) {
+        const msg = JSON.parse(message.body);
+        const chat = document.getElementById('chat');
+        const div = document.createElement('div');
+        div.innerText = msg.content;
+        chat.appendChild(div);
+        chat.scrollTop = chat.scrollHeight;
+      });
+    });
+  }
+
+  function sendMessage() {
+    const from = document.getElementById('username').value;
+    const content = document.getElementById('message').value;
+    if (content.trim() !== '') {
+      const now = new Date().toISOString();
+      const start = performance.now();
+      setTimeout(() => {
+        const duration = performance.now() - start;
+        const msg = `[${now}] ${from}: ${content} (Kafka processing time: ${duration.toFixed(3)} ms (${Math.round(duration * 1000)} us))`;
+        stompClient.send("/app/chat", {}, JSON.stringify({from: from, content: msg}));
+        document.getElementById('message').value = '';
+      }, 0);
+    }
+  }
+
+  function toggleRandom() {
+    const toggleBtn = document.getElementById("toggleBtn");
+    if (!running) {
+      running = true;
+      toggleBtn.innerText = "■ Stop";
+      toggleBtn.classList.remove("btn-outline-success");
+      toggleBtn.classList.add("btn-outline-danger");
+      randomMessageInterval = setInterval(() => {
+        const now = new Date().toISOString();
+        const from = document.getElementById('username').value;
+        const text = "AUTO_" + Math.random().toString(36).substring(2, 8);
+        const start = performance.now();
+        setTimeout(() => {
+          const duration = performance.now() - start;
+          const msg = `[${now}] ${from}: ${text} (Kafka processing time: ${duration.toFixed(3)} ms (${Math.round(duration * 1000)} us))`;
+          stompClient.send("/app/chat", {}, JSON.stringify({from: from, content: msg}));
+        }, 0);
+      }, 1000);
+    } else {
+      running = false;
+      clearInterval(randomMessageInterval);
+      toggleBtn.innerText = "▶ Random Message";
+      toggleBtn.classList.remove("btn-outline-danger");
+      toggleBtn.classList.add("btn-outline-success");
+    }
+  }
+
+  function loadKafkaInfo() {
+      fetch('/api/kafka/info')
+          .then(response => response.json())
+          .then(data => {
+              const tbody = document.getElementById("kafkaInfoBody");
+              tbody.innerHTML = "";
+  
+              function renderRow(key, value, depth = 0) {
+                  const indent = '&nbsp;'.repeat(depth * 0);
+                  const row = document.createElement("tr");
+                  if (typeof value === 'object' && value !== null) {
+                      row.innerHTML = `<td>${indent}<strong>${key}</strong></td><td></td>`;
+                      tbody.appendChild(row);
+                      for (const subKey in value) {
+                          renderRow(subKey, value[subKey], depth + 0);
+                      }
+                  } else {
+                      row.innerHTML = `<td>${indent}${key}</td><td>${value}</td>`;
+                      tbody.appendChild(row);
+                  }
+              }
+  
+              for (const key in data) {
+                  renderRow(key, data[key]);
+              }
+          })
+          .catch(err => {
+              const tbody = document.getElementById("kafkaInfoBody");
+              tbody.innerHTML = `<tr><td colspan='2'>Error loading Kafka info: ${err}</td></tr>`;
+          });
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    connect();
+    loadKafkaInfo();
+  });
+
+  document.getElementById('message').addEventListener("keypress", function(event) {
+    if (event.key === "Enter") sendMessage();
+  });
+</script>
+</body>
+</html>

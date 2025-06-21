@@ -1,0 +1,11 @@
+spring:
+  kafka:
+    bootstrap-servers: kafka.local:9092
+    template:
+      default-topic: chat-topic
+    consumer:
+      group-id: chat-group
+      auto-offset-reset: earliest
+
+server:
+  port: 8080
