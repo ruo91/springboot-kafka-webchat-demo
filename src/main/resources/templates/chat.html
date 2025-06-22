@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>Kafka WebSocket Chat</title>
   <link href="css/bootstrap.min.css" rel="stylesheet">
-  <script src="js/sockjs.min.js"></script>
   <script src="js/stomp.min.js"></script>
   <style>
     html, body {
@@ -75,8 +74,14 @@
   let running = false;
 
   function connect() {
-    const socket = new SockJS('/ws');
+    const loc = window.location;
+    const protocol = loc.protocol === "https:" ? "wss://" : "ws://";
+    const socketUrl = protocol + loc.host + "/ws";
+
+    const socket = new WebSocket(socketUrl);
     stompClient = Stomp.over(socket);
+    stompClient.debug = null; // 로그 제거
+
     stompClient.connect({}, function () {
       stompClient.subscribe('/topic/messages', function (message) {
         const msg = JSON.parse(message.body);
@@ -86,6 +91,8 @@
         chat.appendChild(div);
         chat.scrollTop = chat.scrollHeight;
       });
+    }, function (error) {
+      console.error("WebSocket connection error:", error);
     });
   }
 
@@ -132,35 +139,35 @@
   }
 
   function loadKafkaInfo() {
-      fetch('/api/kafka/info')
-          .then(response => response.json())
-          .then(data => {
-              const tbody = document.getElementById("kafkaInfoBody");
-              tbody.innerHTML = "";
-  
-              function renderRow(key, value, depth = 0) {
-                  const indent = '&nbsp;'.repeat(depth * 0);
-                  const row = document.createElement("tr");
-                  if (typeof value === 'object' && value !== null) {
-                      row.innerHTML = `<td>${indent}<strong>${key}</strong></td><td></td>`;
-                      tbody.appendChild(row);
-                      for (const subKey in value) {
-                          renderRow(subKey, value[subKey], depth + 0);
-                      }
-                  } else {
-                      row.innerHTML = `<td>${indent}${key}</td><td>${value}</td>`;
-                      tbody.appendChild(row);
-                  }
-              }
-  
-              for (const key in data) {
-                  renderRow(key, data[key]);
-              }
-          })
-          .catch(err => {
-              const tbody = document.getElementById("kafkaInfoBody");
-              tbody.innerHTML = `<tr><td colspan='2'>Error loading Kafka info: ${err}</td></tr>`;
-          });
+    fetch('/api/kafka/info')
+      .then(response => response.json())
+      .then(data => {
+        const tbody = document.getElementById("kafkaInfoBody");
+        tbody.innerHTML = "";
+
+        function renderRow(key, value, depth = 0) {
+          const indent = '&nbsp;'.repeat(depth * 0);
+          const row = document.createElement("tr");
+          if (typeof value === 'object' && value !== null) {
+            row.innerHTML = `<td>${indent}<strong>${key}</strong></td><td></td>`;
+            tbody.appendChild(row);
+            for (const subKey in value) {
+              renderRow(subKey, value[subKey], depth + 0);
+            }
+          } else {
+            row.innerHTML = `<td>${indent}${key}</td><td>${value}</td>`;
+            tbody.appendChild(row);
+          }
+        }
+
+        for (const key in data) {
+          renderRow(key, data[key]);
+        }
+      })
+      .catch(err => {
+        const tbody = document.getElementById("kafkaInfoBody");
+        tbody.innerHTML = `<tr><td colspan='2'>Error loading Kafka info: ${err}</td></tr>`;
+      });
   }
 
   document.addEventListener("DOMContentLoaded", () => {
