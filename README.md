@@ -1,6 +1,6 @@
 # Kafka Web Chat (Spring Boot)
 This is a simple web-based chat application built using **Spring Boot** and **Kafka**.  
-It demonstrates real-time messaging via WebSocket and uses Kafka for message brokering and key-value storage.
+It demonstrates real-time messaging via WebSocket and uses Kafka for message brokering.
 
 ## 🔧 Tech Stack
 
