@@ -1,1 +1,0 @@
-Couldn't find the requested file /dist/sockjs.min.j in sockjs-client.
